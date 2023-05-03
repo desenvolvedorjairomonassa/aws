@@ -1,0 +1,56 @@
+import boto3
+
+BUCKET_NAME = "<<CHANGE_BY_FOLDERNAME>>"
+client = boto3.client('glue')
+
+def create_database():
+    # Create database 
+    try:
+        response = client.create_database(
+            DatabaseInput={
+                'Name': 'python_glueworkshop',
+                'Description': 'This database is created using Python boto3',
+            }
+        )
+        print("Successfully created database in the datacatalog")
+    except:
+        print("error in creating database in the datacatalog")
+
+def create_crawler(name:str):
+    # Create Glue Crawler 
+    try:
+        response = client.create_crawler(
+            Name=name,
+            Role='AWSGlueServiceRole-glueworkshop',
+            DatabaseName='python_glueworkshop',
+            Targets={
+                'S3Targets': [
+                    {
+                        'Path': 's3://{BUCKET_NAME}/input/lab1/csv'.format(BUCKET_NAME = BUCKET_NAME),
+                    },
+                    {
+                        'Path': 's3://{BUCKET_NAME}/input/lab5/json'.format(BUCKET_NAME = BUCKET_NAME),
+                    }
+                ]
+            },
+            TablePrefix='python_'
+        )
+        print("Successfully created crawler")
+    except:
+        print("error in creating crawler")
+
+def star_crawler(name: str):
+    # This is the command to start the Crawler
+    try:
+        response = client.start_crawler(
+            Name=name
+        )
+        print("Successfully started crawler")
+    except:
+        print("error in starting crawler")
+
+if __name__ == '__main__':
+    create_database()
+    create_crawler('python-lab1')
+    star_crawler('python-lab1')
+    
