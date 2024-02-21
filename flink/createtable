@@ -1,0 +1,137 @@
+%flink.pyflink
+st_env.execute_sql("""DROP TEMPORARY TABLE IF EXISTS tmptickerstream""")
+st_env.execute_sql("""DROP TEMPORARY TABLE IF EXISTS tmpclickstream""")
+st_env.execute_sql("""DROP TEMPORARY TABLE IF EXISTS tmpimpressionstream""")
+st_env.execute_sql("""DROP TABLE IF EXISTS clickstream""")
+st_env.execute_sql("""DROP TABLE IF EXISTS impressionstream""")
+st_env.execute_sql("""DROP TEMPORARY TABLE IF EXISTS tmpctrstream""")
+st_env.execute_sql("""DROP TABLE IF EXISTS ctrstream""")
+st_env.execute_sql("""DROP TEMPORARY TABLE IF EXISTS tmpdestinationstream""")
+st_env.execute_sql("""DROP TABLE IF EXISTS destinationstream""")
+st_env.execute_sql("""DROP TEMPORARY TABLE IF EXISTS tmpanomalydetectionstream""")
+st_env.execute_sql("""DROP TABLE IF EXISTS anomalydetectionstream""")
+st_env.execute_sql("""CREATE TEMPORARY TABLE tmptickerstream (
+  `browseraction` STRING,
+  `site`          STRING,
+  `rowtime`       TIMESTAMP(3) METADATA FROM 'timestamp',
+  WATERMARK FOR rowtime AS rowtime - INTERVAL '0' SECOND
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'tickerstream',
+  'aws.region' = 'us-east-1',
+  'scan.stream.initpos' = 'TRIM_HORIZON',
+  'format' = 'json'
+)""")
+st_env.execute_sql("""CREATE TEMPORARY TABLE tmpclickstream (
+    `rowtime`    TIMESTAMP(3),
+    `clickcount` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'clickstream',
+  'aws.region' = 'us-east-1',
+  'format' = 'json'
+)""")
+st_env.execute_sql("""CREATE TEMPORARY TABLE tmpimpressionstream (
+    `rowtime`    TIMESTAMP(3),
+    `impressioncount` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'impressionstream',
+  'aws.region' = 'us-east-1',
+  'format' = 'json'
+)""")
+st_env.execute_sql("""CREATE TABLE clickstream (
+    `rowtime`    TIMESTAMP(3),
+    `clickcount` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'clickstream',
+  'aws.region' = 'us-east-1',
+  'scan.stream.initpos' = 'TRIM_HORIZON',
+  'format' = 'json'
+)""")
+st_env.execute_sql("""CREATE TABLE impressionstream (
+    `rowtime`    TIMESTAMP(3),
+    `impressioncount` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'impressionstream',
+  'aws.region' = 'us-east-1',
+  'scan.stream.initpos' = 'TRIM_HORIZON',  
+  'format' = 'json'
+)""")
+st_env.execute_sql("""CREATE TEMPORARY TABLE tmpctrstream (
+    `time` BIGINT,
+    `ctr` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'ctrstream',
+  'aws.region' = 'us-east-1',
+  'format' = 'json'
+)""")
+st_env.execute_sql("""CREATE TABLE ctrstream (
+    `time` BIGINT,
+    `ctr` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'ctrstream',
+  'aws.region' = 'us-east-1',
+  'scan.stream.initpos' = 'TRIM_HORIZON',
+  'format' = 'json'
+)""")
+st_env.execute_sql("""CREATE TEMPORARY TABLE tmpdestinationstream (
+    `time` BIGINT,
+    `ctr` DOUBLE,
+    `score` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'destinationstream',
+  'aws.region' = 'us-east-1',
+  'format' = 'json'
+)""")
+
+st_env.execute_sql("""CREATE TABLE destinationstream (
+    `time` BIGINT,
+    `ctr` DOUBLE,
+    `score` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'destinationstream',
+  'aws.region' = 'us-east-1',
+  'scan.stream.initpos' = 'TRIM_HORIZON',
+  'format' = 'json'
+)""")
+
+st_env.execute_sql("""CREATE TEMPORARY TABLE tmpanomalydetectionstream (
+    `rowtime` TIMESTAMP,
+    `ctrpercent` DOUBLE,
+    `anomaly_score` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'anomalydetectionstream',
+  'aws.region' = 'us-east-1',
+  'format' = 'json'
+)""")
+
+st_env.execute_sql("""CREATE TABLE anomalydetectionstream (
+    `rowtime` TIMESTAMP,
+    `ctrpercent` DOUBLE,
+    `anomaly_score` DOUBLE
+) 
+ WITH (
+  'connector' = 'kinesis',
+  'stream' = 'anomalydetectionstream',
+  'aws.region' = 'us-east-1',
+  'scan.stream.initpos' = 'TRIM_HORIZON',
+  'format' = 'json'
+)""")
