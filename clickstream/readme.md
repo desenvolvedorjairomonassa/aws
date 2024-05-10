@@ -33,5 +33,6 @@ A arquitetura de clickstream da AWS é composta pelos seguintes componentes:
 - 
 - consultaAthena.sql - consulta do stream no Athena, agrupado por categoria, subcategoria e dispositivo
 - ClickStream-setup.yaml - IaC em cloudFormation
+- lambda_sent_kinesis.py - lambda que pega os dados do API Gateway e envia para Kineis ( ele já está incluindo no yaml)
 - 
 baseado no blog https://aws.amazon.com/blogs/industries/capture-clickstream-data-using-aws-serverless-services/
