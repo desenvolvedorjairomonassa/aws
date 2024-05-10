@@ -1,0 +1,457 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ""
+Resources:
+    ClickStreamApiGatewayV2Stage:
+        Type: "AWS::ApiGatewayV2::Stage"
+        Properties:
+            StageName: "$default"
+            StageVariables: {}
+            ApiId: !Ref ClickStreamApiGatewayV2Api
+            RouteSettings: {}
+            DefaultRouteSettings: 
+                DetailedMetricsEnabled: false
+            AutoDeploy: true
+
+    ClickStreamApiGatewayV2Api:
+        Type: "AWS::ApiGatewayV2::Api"
+        Properties:
+            Name: "ClickstreamAPI"
+            ApiKeySelectionExpression: "$request.header.x-api-key"
+            ProtocolType: "HTTP"
+            RouteSelectionExpression: "$request.method $request.path"
+            CorsConfiguration: 
+                AllowCredentials: true
+                AllowHeaders: 
+                  - "authorization"
+                  - "*"
+                AllowMethods: 
+                  - "*"
+                  - "GET"
+                  - "POST"
+                  - "DELETE"
+                AllowOrigins: 
+                  - "http://*"
+                  - "https://*"
+                ExposeHeaders: 
+                  - "date"
+                  - "x-api-id"
+                MaxAge: 300
+            DisableExecuteApiEndpoint: false
+
+    ClickStreamApiGatewayV2Route:
+        Type: "AWS::ApiGatewayV2::Route"
+        Properties:
+            ApiId: !Ref ClickStreamApiGatewayV2Api
+            ApiKeyRequired: false
+            AuthorizationType: "NONE"
+            RequestParameters: {}
+            RouteKey: "ANY /ingestclickstream"
+            Target: !Sub "integrations/${ClickStreamApiGatewayV2Integration}"
+
+    ClickStreamApiGatewayV2Integration:
+        Type: "AWS::ApiGatewayV2::Integration"
+        Properties:
+            ApiId: !Ref ClickStreamApiGatewayV2Api
+            ConnectionType: "INTERNET"
+            IntegrationMethod: "POST"
+            IntegrationType: "AWS_PROXY"
+            IntegrationUri: !GetAtt StandardizeLambda.Arn
+            TimeoutInMillis: 30000
+            PayloadFormatVersion: "2.0"
+
+    ClickStreamApiGatewayV2Deployment:
+        Type: "AWS::ApiGatewayV2::Deployment"
+        DependsOn:
+            - ClickStreamApiGatewayV2Route
+        Properties:
+            ApiId: !Ref ClickStreamApiGatewayV2Api
+                
+    ClickstreamKinesisIAMManagedPolicy:
+        Type: "AWS::IAM::ManagedPolicy"
+        Properties:
+            Path: "/"
+            PolicyDocument: !Sub |
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "VisualEditor0",
+                            "Effect": "Allow",
+                            "Action": [
+                                "kinesis:PutRecord",
+                                "kinesis:PutRecords",
+                                "kinesis:GetShardIterator",
+                                "kinesis:GetRecords",
+                                "kinesis:DescribeStream"
+                            ],
+                            "Resource": ["${ClickstreamKinesisStream.Arn}"]
+                        },
+                        {
+                            "Sid": "VisualEditor1",
+                            "Effect": "Allow",
+                            "Action": [
+                                "kinesis:ListStreams",
+                                "kinesis:ListShards"
+                            ],
+                            "Resource": "*"
+                        }
+                    ]
+                }
+
+    ClickstreamKinesisFHIAMManagedPolicy:
+        Type: "AWS::IAM::ManagedPolicy"
+        Properties:
+            Path: "/"
+            PolicyDocument: !Sub |
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "",
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:AbortMultipartUpload",
+                                "s3:GetBucketLocation",
+                                "s3:GetObject",
+                                "s3:ListBucket",
+                                "s3:ListBucketMultipartUploads",
+                                "s3:PutObject"
+                            ],
+                            "Resource": [
+                                "arn:aws:s3:::${ClickstreamS3Bucket}",
+                                "arn:aws:s3:::${ClickstreamS3Bucket}/*"
+                            ]
+                        },
+                        {
+                            "Sid": "",
+                            "Effect": "Allow",
+                            "Action": [
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Resource": [
+                                "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/kinesisfirehose/Clickstream*:log-stream:*"
+                            ]
+                        },
+                        {
+                            "Sid": "",
+                            "Effect": "Allow",
+                            "Action": [
+                                "kinesis:DescribeStream",
+                                "kinesis:GetShardIterator",
+                                "kinesis:GetRecords",
+                                "kinesis:ListShards"
+                            ],
+                            "Resource": "arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/${ClickstreamKinesisStream}"
+                        }
+                    ]
+                }
+
+    ClickstreamLambdaIAMManagedPolicy:
+        Type: "AWS::IAM::ManagedPolicy"
+        Properties:
+            Path: "/"
+            PolicyDocument: !Sub |
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "logs:CreateLogGroup",
+                            "Resource": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Resource": [
+                                "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*Clickstream*:*"
+                            ]
+                        }
+                    ]
+                }
+
+    ClickstreamKinesisFHIAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"firehose.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - !Ref ClickstreamKinesisFHIAMManagedPolicy
+            Description: "Allows Kinesis Firehose to transform and deliver data to your destinations using CloudWatch Logs, Lambda, and S3 on your behalf."
+
+    ClickstreamLambdaIAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - !Ref ClickstreamLambdaIAMManagedPolicy
+            Description: "Allows Lambda functions to call AWS services on your behalf."
+
+
+    ClickstreamSandardizeLambdaIAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - !Ref ClickstreamLambdaIAMManagedPolicy
+              - !Ref ClickstreamKinesisIAMManagedPolicy
+            Description: "Allows Lambda functions to call AWS services on your behalf."
+
+    StandardizeLambda:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    KDS_NAME: !Ref ClickstreamKinesisStream
+            Handler: "index.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+              ZipFile:  |
+                import json
+                import os
+                import boto3
+                from datetime import datetime
+                import time
+                from dateutil import tz
+                kinesis = boto3.client('kinesis')
+                def lambda_handler(event, context):
+                    print(event)
+                    clickstreamdata = event["queryStringParameters"]
+                    create_ts = datetime.now()
+                    create_ts = create_ts.strftime("%Y-%m-%d %H:%M:%S.%f")
+                    clickstreamdata["createts"]= create_ts
+                    data = json.dumps(clickstreamdata)
+                    payload = str(data) + "\n"
+                    kds = os.environ['KDS_NAME']
+                    kinesis.put_record(
+                            StreamName=kds,
+                            Data=payload,
+                            PartitionKey='partitionkey')
+                    print ('Data ingested in Kinesis')
+                    return {
+                        'statusCode': 200,
+                        'body': json.dumps('Click received')
+                    }
+
+            MemorySize: 128
+            Role: !GetAtt ClickstreamSandardizeLambdaIAMRole.Arn
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "Active"
+            EphemeralStorage: 
+                Size: 512
+
+    IngestDataLambda:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Handler: "index.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+               ZipFile: !Sub | 
+                import json
+                import random
+                import time
+                import urllib3
+
+                def lambda_handler(event, context):
+                    acustomerid = ["Cust01","Cust02","Cust03"]
+                    adeviceid = ["Desktop","Mobile","iPad","Android"]
+                    aproductid = ["Prod01","Prod02","Prod03","Prod04"]
+                    aproductcategory = ["Clothing","Shoes","Handbags","Jewelry&accessories"]
+                    aproductsubcategory = ["Mens","Womens","Kids"]
+                    aactivitytype = ["AddToCart","ViewProduct","PurchaseItem"]
+                    http = urllib3.PoolManager()
+                    cnt = 0 
+                    while cnt < 100 :
+                        customerid= random.choice(acustomerid)
+                        deviceid= random.choice(adeviceid)
+                        productid= random.choice(aproductid)
+                        productcategory= random.choice(aproductcategory)
+                        productsubcategory= random.choice(aproductsubcategory)
+                        activitytype= random.choice(aactivitytype)
+                        url = '${ClickStreamApiGatewayV2Api.ApiEndpoint}/ingestclickstream?customerid=' + customerid + '&deviceid=' + deviceid + '&productid=' + productid + '&productcategory=' + productcategory + '&productsubcategory='+ productsubcategory + '&activitytype='+ activitytype
+                        print (url)
+                        response = http.request('GET',url)
+                        api_status = json.loads(response.data.decode('utf-8'))
+                        if response.status == 200:
+                            print('Request successful')
+                            print(response.data)
+                        else:
+                            print('Request failed')
+                        time.sleep(0.25)
+                        cnt = cnt+1
+                    return response.status                    
+            MemorySize: 128
+            Role: !GetAtt ClickstreamLambdaIAMRole.Arn
+            Runtime: "python3.9"
+            Timeout: 900
+            TracingConfig: 
+                Mode: "PassThrough"
+            EphemeralStorage: 
+                Size: 512
+
+    ClickstreamKinesisStream:
+        Type: "AWS::Kinesis::Stream"
+        Properties:
+            #Name: "Clickstream_KDS"
+            RetentionPeriodHours: 24
+            ShardCount: 4
+            StreamEncryption: 
+                EncryptionType: "KMS"
+                KeyId: "alias/aws/kinesis"
+
+    ClickstreamS3Bucket:
+        Type: "AWS::S3::Bucket"
+        Properties:
+            BucketEncryption: 
+                ServerSideEncryptionConfiguration: 
+                    - ServerSideEncryptionByDefault: 
+                        SSEAlgorithm: "aws:kms"
+                        KMSMasterKeyID: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+                      BucketKeyEnabled: true
+                        
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: TRUE
+                BlockPublicPolicy: TRUE
+                
+    
+    ClickstreamKinesisFirehoseDeliveryStream:
+        Type: "AWS::KinesisFirehose::DeliveryStream"
+        DependsOn: 
+            - ClickstreamS3Bucket
+        Properties:
+            #DeliveryStreamName: "Clickstream_EnrichedData_FH"
+            DeliveryStreamType: "KinesisStreamAsSource"
+            KinesisStreamSourceConfiguration: 
+                KinesisStreamARN: !GetAtt ClickstreamKinesisStream.Arn
+                RoleARN: !GetAtt ClickstreamKinesisFHIAMRole.Arn
+            S3DestinationConfiguration: 
+                BucketARN: !GetAtt ClickstreamS3Bucket.Arn
+                BufferingHints: 
+                    SizeInMBs: 1
+                    IntervalInSeconds: 60
+                CloudWatchLoggingOptions: 
+                    Enabled: true
+                    LogGroupName: "/aws/kinesisfirehose/Clickstream_EnrichedData_FH"
+                    LogStreamName: "DestinationDelivery"
+                CompressionFormat: "UNCOMPRESSED"
+                EncryptionConfiguration: 
+                    NoEncryptionConfig: "NoEncryption"
+                Prefix: "enriched/"
+                RoleARN: !GetAtt ClickstreamKinesisFHIAMRole.Arn
+
+    ClickstreamLambdaPermission:
+        DependsOn:
+            - StandardizeLambda
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !GetAtt StandardizeLambda.Arn
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickStreamApiGatewayV2Api}/*/*/ingestclickstream"
+
+    ClickstreamSSMParameter:
+        Type: "AWS::SSM::Parameter"
+        Properties:
+            Name: "ClickStream_Tracker"
+            Type: "String"
+            Value: "e8a1ea32-a397-4cb4-8669-5e051cb5b1a6"
+            DataType: "text"
+     
+    ClickstreamGlueIAMManagedPolicy:
+        Type: "AWS::IAM::ManagedPolicy"
+        Properties:
+            ManagedPolicyName: "AWSGlueServiceRole-clickstream"
+            Path: "/service-role/"
+            PolicyDocument: !Sub |
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:GetObject",
+                                "s3:PutObject"
+                            ],
+                            "Resource": "arn:aws:s3:::${ClickstreamS3Bucket}/*"
+                        }
+                    ]
+                }
+
+    ClickstreamGlueIAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/service-role/"
+            AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"glue.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+            MaxSessionDuration: 3600
+            ManagedPolicyArns: 
+              - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+              - !Ref ClickstreamGlueIAMManagedPolicy
+
+    ClickstreamGlueDatabase:
+        Type: "AWS::Glue::Database"
+        Properties:
+            DatabaseInput: 
+                Name: "clickstream_db"
+            CatalogId: !Ref "AWS::AccountId"
+
+    GlueCrawler:
+        Type: "AWS::Glue::Crawler"
+        Properties:
+            Role: !Sub "service-role/${ClickstreamGlueIAMRole}"
+            Targets: 
+                S3Targets: 
+                  - 
+                    Path: !Sub "s3://${ClickstreamS3Bucket}"
+            DatabaseName: "clickstream_db"
+            SchemaChangePolicy: 
+                UpdateBehavior: "LOG"
+                DeleteBehavior: "LOG"
+            Configuration: "{\"Version\":1.0,\"Grouping\":{\"TableGroupingPolicy\":\"CombineCompatibleSchemas\"}}"
+
+    ClickstreamAthenaNamedQuery:
+        Type: AWS::Athena::NamedQuery
+        DeletionPolicy: Delete
+        Properties:
+            Database: !Ref ClickstreamGlueDatabase
+            Description: "Create table for clickstream data"
+            QueryString:
+                !Sub
+                |
+                    CREATE EXTERNAL TABLE `Clickstream_data`(
+                    `customerid` string COMMENT 'from deserializer', 
+                    `deviceid` string COMMENT 'from deserializer', 
+                    `productid` string COMMENT 'from deserializer',
+                    `productcategory` string COMMENT 'from deserializer',
+                    `productsubcategory` string COMMENT 'from deserializer',
+                    `activitytype` string COMMENT 'from deserializer',
+                    `createts` timestamp COMMENT 'from deserializer')
+                    ROW FORMAT SERDE 
+                    'org.openx.data.jsonserde.JsonSerDe' 
+                    STORED AS INPUTFORMAT 
+                    'org.apache.hadoop.mapred.TextInputFormat' 
+                    OUTPUTFORMAT 
+                    'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+                    LOCATION
+                    's3://${ClickstreamS3Bucket}/enriched'
+                    TBLPROPERTIES (
+                    'classification'='json')
+Outputs:
+    APIEndPoint:
+        Value: !Sub "${ClickStreamApiGatewayV2Api.ApiEndpoint}/ingestclickstream?userid=JohnDoe&deviceid=mobile&category=footwear&subcategory=shoes"
+
+
+    
