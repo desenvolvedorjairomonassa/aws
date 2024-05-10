@@ -28,4 +28,10 @@ A arquitetura de clickstream da AWS é composta pelos seguintes componentes:
 
 - **Amazon QuickSight**: Este serviço é usado para visualizar dados de clickstream. O QuickSight é um serviço de visualização de dados que permite aos usuários criar painéis e relatórios interativos.
 
+
+- **arquivos**:
+- 
+- consultaAthena.sql - consulta do stream no Athena, agrupado por categoria, subcategoria e dispositivo
+- ClickStream-setup.yaml - IaC em cloudFormation
+- 
 baseado no blog https://aws.amazon.com/blogs/industries/capture-clickstream-data-using-aws-serverless-services/
