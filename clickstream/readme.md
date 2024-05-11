@@ -8,7 +8,7 @@ Arquitetura de Clickstream da AWS
 
 A imagem é uma arquitetura de clickstream da AWS. O clickstream é um registro das ações que um usuário realiza em um site ou aplicativo, como cliques em links, visualizações de páginas e compras. Essa arquitetura usa vários serviços da AWS para coletar, armazenar, processar e analisar dados de clickstream.
 
-# Componentes da arquitetura
+## Componentes da arquitetura
 
 A arquitetura de clickstream da AWS é composta pelos seguintes componentes:
 
@@ -17,7 +17,7 @@ A arquitetura de clickstream da AWS é composta pelos seguintes componentes:
 - **AWS Lambda**: Este serviço é usado para executar funções sem servidor. Na arquitetura de clickstream, o Lambda joga os dados dos clicks do API Gateway pata kinesis data streams
 - **Amazon Kinesis Data Streams**: Este serviço é usado para coletar e armazenar dados de clickstream em tempo real.
 - **Amazon Kinesis Firehose**: Este serviço é usado para ingerir dados de clickstream em Kinesis Data Streams. O Firehose vai jogar os dados do Kinesis streams no S3
-- **Amazon S3**: Este serviço é usado para armazenar dados de clickstream de forma duradoura. O S3 é um armazenamento de objetos escalável e durável que pode armazenar grandes volumes de dados. O firehose vai jogar em uma janela de entorno de 10 registros no tipo ode arquivo CSV, particionado dentro de folder em data : ano/mês/dia
+- **Amazon S3**: Este serviço é usado para armazenar dados de clickstream de forma duradoura. O S3 é um armazenamento de objetos escalável e durável que pode armazenar grandes volumes de dados. O firehose vai jogar em uma janela  no tipo ode arquivo json, particionado dentro de folder em data : ano/mês/dia
 - **Amazon Athena**: Este serviço é usado para consultar dados de clickstream armazenados no S3. O Athena é um serviço de consulta interativa que permite aos usuários consultar dados do clickstream no formato da tabela :
     - customerid
     - deviceid
@@ -29,10 +29,9 @@ A arquitetura de clickstream da AWS é composta pelos seguintes componentes:
 - **Amazon QuickSight**: Este serviço é usado para visualizar dados de clickstream. O QuickSight é um serviço de visualização de dados que permite aos usuários criar painéis e relatórios interativos.
 
 
-- **arquivos**:
-- 
+# **arquivos**:
+  
 - consultaAthena.sql - consulta do stream no Athena, agrupado por categoria, subcategoria e dispositivo
 - ClickStream-setup.yaml - IaC em cloudFormation
 - lambda_sent_kinesis.py - lambda que pega os dados do API Gateway e envia para Kineis ( ele já está incluindo no yaml)
-- 
-baseado no blog https://aws.amazon.com/blogs/industries/capture-clickstream-data-using-aws-serverless-services/
+- createtable.sql - cria a tabela no athena (criar o nome do bucket)
